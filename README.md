@@ -1,4 +1,4 @@
-# first_app
+# truple_practice
 
 A new Flutter project.
 

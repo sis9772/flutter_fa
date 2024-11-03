@@ -29,19 +29,20 @@ class _CalendarState extends State<Calendar> {
     _loadUserItinerary();
   }
 
-  void _loadUserItinerary() async { // 사용자 일정 불러오기
+  void _loadUserItinerary() {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('itineraries')
+          .orderBy('order')
           .snapshots()
           .listen((snapshot) {
-        _updateMarkersAndPolylines(snapshot.docs);
-        if (snapshot.docs.isNotEmpty) {
-          _moveCameraToFirstItinerary(snapshot.docs.first);
-        }
+        setState(() {
+          _itineraries = snapshot.docs;
+          _updateMarkersAndPolylines(_itineraries);
+        });
       });
     }
   }
@@ -63,6 +64,10 @@ class _CalendarState extends State<Calendar> {
       ));
 
       polylineCoordinates.add(latLng);
+    }
+
+    void updateSelectedPlaces(List<DocumentSnapshot> docs) { // _selectedplaces를 불러와 업데이트
+
     }
 
     setState(() {
@@ -130,7 +135,7 @@ class _CalendarState extends State<Calendar> {
                 flex: 1,
                 child: GoogleMap(
                   myLocationButtonEnabled: false,
-                  zoomControlsEnabled: false, //true로 변경
+                  zoomControlsEnabled: true, //true로 변경
                   initialCameraPosition: _initCameraPosition,
                   onMapCreated: (controller) {
                     _googleMapController = controller;
@@ -162,15 +167,16 @@ class _CalendarState extends State<Calendar> {
                       final item = _itineraries.removeAt(oldIndex);
                       _itineraries.insert(newIndex, item);
                       _updateMarkersAndPolylines(_itineraries);
+                      _loadUserItinerary();
                     });
                   } : (oldIndex, newIndex) {}, // 편집 모드가 아닐 때는 순서 변경 불가
                   children: _itineraries.map((doc) {
-                    final itinerary = doc.data() as Map<String, dynamic>;
+                    final itinerary = doc.data() as Map<String, dynamic>; //geopoint
                     final documentId = doc.id;
-                    return ListTile( // 일정 표시하는 부분
+                    return ListTile( // 일정 표시하는 부분, geopoint 안나오게 후처리하고, 리스트에서 거꾸로 표시할것
                       key: ValueKey(documentId),
                       title: Text(itinerary['name']),
-                      subtitle: Text(itinerary['location'].toString()),
+                      //subtitle: Text(itinerary['location'].toString()),
                       trailing: _isEditing
                           ? IconButton(
                         icon: const Icon(Icons.delete),
@@ -200,6 +206,7 @@ class _CalendarState extends State<Calendar> {
                             setState(() {
                               _itineraries.remove(doc);
                               _updateMarkersAndPolylines(_itineraries);
+                              _loadUserItinerary();
                             });
                           }
                         },
@@ -225,7 +232,7 @@ class _CalendarState extends State<Calendar> {
               child: const Icon(Icons.add),
             ),
           ),
-          Positioned(
+          /*Positioned(
             bottom: 20,
             right: 20,
             child: FloatingActionButton(
@@ -237,7 +244,7 @@ class _CalendarState extends State<Calendar> {
               tooltip: "편집",
               child: Icon(_isEditing ? Icons.done : Icons.edit),
             ),
-          ),
+          ),*/
         ],
       ),
     );

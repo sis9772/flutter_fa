@@ -8,7 +8,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class AddPlaceScreen extends StatefulWidget {
-  const AddPlaceScreen({super.key});
+  final String calendarId;
+  final String dayId; // 추가된 dayId
+
+  const AddPlaceScreen({Key? key, required this.calendarId, required this.dayId}) : super(key: key);
 
   @override
   _AddPlaceScreenState createState() => _AddPlaceScreenState();
@@ -26,18 +29,29 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
         final shortDescription = prediction.structuredFormatting?.mainText ?? 'Unknown Location';
         final placeId = prediction.placeId ?? 'Unknown Place ID';
 
+        // Google Places API를 사용하여 장소 세부 정보를 가져옵니다.
+        final placeDetails = await _fetchPlaceDetails(placeId);
+        final types = placeDetails['types'] as List<String>? ?? [];
+        final rating = placeDetails['rating'] as double? ?? 0.0;
+
         final nextOrderValue = await _getNextOrderValue();
 
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
-            .collection('itineraries')
+            .collection('calendars')
+            .doc(widget.calendarId)
+            .collection('dates')
+            .doc(widget.dayId) // 전달받은 dayId 사용
+            .collection('places')
             .add({
           'name': shortDescription,
           'location': GeoPoint(latitude, longitude),
           'timestamp': FieldValue.serverTimestamp(),
           'order': nextOrderValue,
           'placeId': placeId,
+          'types': types,
+          'rating': rating,
         });
         print('Place added with coordinates: ($latitude, $longitude)');
       } catch (e) {
@@ -55,7 +69,11 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
-          .collection('itineraries')
+          .collection('calendars')
+          .doc(widget.calendarId)
+          .collection('dates')
+          .doc(widget.dayId) // 전달받은 dayId 사용
+          .collection('places')
           .orderBy('order', descending: true)
           .limit(1)
           .get();
@@ -65,6 +83,26 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
       }
     }
     return 1;
+  }
+
+  Future<Map<String, dynamic>> _fetchPlaceDetails(String placeId) async {
+    final url = Uri.parse('https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['status'] == 'OK') {
+        final result = data['result'];
+        // 명시적 타입 변환
+        final types = (result['types'] as List<dynamic>?)?.map((item) => item as String).toList() ?? [];
+        final rating = result['rating'] as double? ?? 0.0;
+        return {
+          'types': types,
+          'rating': rating,
+        };
+      }
+    }
+    return {'types': [], 'rating': 0.0};
   }
 
   Future<String?> fetchPhotoReference(String placeId) async {
@@ -128,9 +166,9 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
             },
           ),
           const SizedBox(height: 10),
-          Spacer(), // This spacer pushes the following elements to the bottom
+          Spacer(),
           SizedBox(
-            height: screenHeight / 3, // 화면의 1/3 높이
+            height: screenHeight / 3,
             child: FutureBuilder<List<Widget>>(
               future: _buildSearchResults(),
               builder: (context, snapshot) {
@@ -139,7 +177,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                 } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
                   return ListView.separated(
                     itemCount: snapshot.data!.length,
-                    separatorBuilder: (context, index) => SizedBox(height: 10), // 항목 간의 간격
+                    separatorBuilder: (context, index) => SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       return snapshot.data![index];
                     },
@@ -168,7 +206,9 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                   }
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => Calendar()),
+                    MaterialPageRoute(
+                      builder: (context) => Calendar(calendarId: widget.calendarId),
+                    ),
                   );
                 } else {
                   print('No place selected to add.');
@@ -198,7 +238,7 @@ class _AddPlaceScreenState extends State<AddPlaceScreen> {
                 });
               },
               child: AspectRatio(
-                aspectRatio: 1, // 정사각형 비율
+                aspectRatio: 1,
                 child: Image.network(photoUrl, fit: BoxFit.cover),
               ),
             ),

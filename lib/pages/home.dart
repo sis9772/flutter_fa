@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'calendar.dart';
-//googleAPIKey: "AIzaSyAyvveCFRA-uYPE5JqiYIgN_BLVNEtKFb4"
+import 'list_calendar.dart';
+
 class Home extends StatefulWidget {
-  const Home({super.key});
+  const Home({Key? key}) : super(key: key);
 
   @override
   State<Home> createState() => _HomeState();
@@ -20,10 +20,10 @@ class _HomeState extends State<Home> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const Calendar()),
+              MaterialPageRoute(builder: (context) => const ListCalendar()),
             );
           },
-          child: const Text("Go to Calendar"),
+          child: const Text("Go to Trip List"),
         ),
       ),
     );
